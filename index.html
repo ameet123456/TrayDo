@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Todo Tray App</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+     :root {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-tertiary: #2d2d2d;
+  --text-primary: #ffffff;
+  --text-secondary: #aaaaaa;
+  --text-muted: #777777;
+  --border-color: #444444;
+  --accent-color: #ffffff; /* white for dark mode */
+  --accent-hover: #cccccc;
+  --success-color: #ffffff;
+  --danger-color: #ffffff; /* delete button/icon visible in dark */
+  --danger-hover: #ff5555; /* subtle red tint on hover */
+  --hover-bg: #333333;
+}
+
+      [data-theme="light"] {
+  --bg-primary: #fdfdfd;      /* soft white */
+  --bg-secondary: #bdb9b9;    /* softer gray */
+  --bg-tertiary: #eeeeee;     
+  --text-primary: #111111;    /* soft black */
+  --text-secondary: #555555;
+  --text-muted: #777777;
+  --border-color: #cccccc;
+  --accent-color: #111111;    /* black in light mode */
+  --accent-hover: #333333;
+  --success-color: #111111;
+  --danger-color: #111111;    /* delete icon visible in light */
+  --danger-hover: #cc0000;    /* subtle red tint hover */
+  --hover-bg: #f0f0f0;
+}
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        overflow: hidden;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        transition: all 0.3s ease;
+      }
+
+      /* Header */
+      .header {
+        background: var(--bg-primary);
+        padding: 10px 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border-color);
+        -webkit-app-region: drag;
+      }
+
+      .header h1 {
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .header-buttons {
+        display: flex;
+        gap: 6px;
+        -webkit-app-region: no-drag;
+      }
+
+      .header-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        padding: 4px;
+        cursor: pointer;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .header-btn:hover {
+        background: var(--hover-bg);
+      }
+
+      /* Input Section */
+      .input-section {
+        padding: 12px;
+        background: var(--bg-primary);
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .input-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      /* Task input */
+      .task-input {
+        flex: 1;
+        padding: 10px 12px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        border-radius: 6px;
+
+        font-size: 14px;
+      }
+
+      .task-input:focus {
+        outline: none;
+        border-color: var(--accent-color);
+      }
+      /* Add button (theme aware) */
+.add-btn {
+  width: 40px;
+  height: 38px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--accent-color);   /* use theme variable */
+}
+
+.add-btn:hover {
+  background: var(--hover-bg);
+  border-color: var(--accent-color);
+}
+
+/* Make sure Lucide SVGs follow theme color */
+.add-btn svg,
+.delete-btn svg,
+.header-btn svg {
+  stroke: currentColor;   /* inherit from button color */
+}
+
+      .add-btn i {
+        color: currentColor;
+      }
+
+      [data-theme="light"] .add-btn {
+        background: #000000;
+        border: 1px solid #000000;
+        border-radius: 6px;
+        color: #ffffff;
+      }
+
+      [data-theme="light"] .add-btn:hover {
+        background: #333333;
+        border-color: #000000;
+      }
+      .tab-filters {
+        display: flex;
+        background: var(--bg-primary);
+        border-bottom: 1px solid var(--border-color);
+      }
+
+      .tab-button {
+        flex: 1;
+        padding: 12px 20px;
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border-bottom: 2px solid transparent;
+      }
+
+      .tab-button:hover {
+        background: var(--hover-bg);
+        color: var(--text-primary);
+      }
+
+      .tab-button.active {
+        color: var(--accent-color);
+        border-bottom-color: var(--accent-color);
+        background: var(--bg-primary);
+      }
+
+      /* Task List */
+      .task-list {
+        overflow-y: auto;
+        transition: height 0.3s ease;
+      }
+
+      .task-item {
+        padding: 12px 15px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: background 0.2s;
+      }
+
+      .task-item:hover {
+        background: var(--hover-bg);
+      }
+
+      .task-checkbox {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--success-color);
+      }
+
+      .task-text {
+        flex: 1;
+        font-size: 14px;
+      }
+
+      .task-text.completed {
+        text-decoration: line-through;
+        color: var(--text-muted);
+      }
+
+      .task-date {
+        font-size: 11px;
+        color: var(--text-muted);
+      }
+
+      .delete-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, color 0.2s ease;
+  color: var(--danger-color); /* use theme variable */
+}
+
+.delete-btn:hover {
+  background: var(--hover-bg);
+  color: var(--danger-hover); /* tint red when hovered */
+}
+.delete-btn svg {
+  stroke: var(--danger-color);   /* match theme */
+  width: 16px;
+  height: 16px;
+  transition: stroke 0.2s ease;
+}
+
+
+
+      /* Empty State */
+      .empty-state {
+        padding: 40px 20px;
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 14px;
+        border-bottom: none;
+      }
+    </style>
+  </head>
+  <body data-theme="dark">
+    <!-- Header -->
+    <div class="header">
+      <h1>Tasks</h1>
+      <div class="header-buttons">
+        <button class="header-btn" id="themeToggle" onclick="toggleTheme()">
+          <i data-lucide="sun" width="18" height="18"></i>
+        </button>
+        <button class="header-btn" onclick="hideWindow()">
+          <i data-lucide="x" width="18" height="18"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainContent">
+      <div class="input-section">
+        <div class="input-group">
+          <input
+            type="text"
+            class="task-input"
+            id="taskInput"
+            placeholder="Add a task..."
+            onkeypress="handleKeyPress(event)"
+          />
+          <button class="add-btn" onclick="addTask()">
+            <i data-lucide="plus" width="18" height="18"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab Filters -->
+      <div class="tab-filters">
+        <button
+          class="tab-button active"
+          id="activeTab"
+          onclick="switchTab('active')"
+        >
+          Active
+        </button>
+        <button
+          class="tab-button"
+          id="completedTab"
+          onclick="switchTab('completed')"
+        >
+          Completed
+        </button>
+      </div>
+      <div class="task-list" id="taskList"></div>
+    </div>
+
+    <script>
+      const { ipcRenderer } = require("electron");
+      const { createIcons, icons } = require("lucide");
+      function formatDateTime(dateString) {
+        const date = new Date(dateString);
+        const now = new Date();
+
+        // Midnight boundaries
+        const today = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate()
+        );
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+
+        // Format hours & minutes only
+        const time = date.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        if (date >= today) {
+          return `Today, ${time}`;
+        } else if (date >= yesterday) {
+          return `Yesterday, ${time}`;
+        } else {
+          // fallback for older tasks
+          return date.toLocaleDateString() + " " + time;
+        }
+      }
+
+      createIcons({ icons });
+
+      function toggleTheme() {
+        const body = document.body;
+        const currentTheme = body.getAttribute("data-theme");
+
+        if (currentTheme === "dark") {
+          body.setAttribute("data-theme", "light");
+          document.getElementById("themeToggle").innerHTML =
+            '<i data-lucide="moon" width="18" height="18"></i>';
+          createIcons({ icons });
+        } else {
+          body.setAttribute("data-theme", "dark");
+          document.getElementById("themeToggle").innerHTML =
+            '<i data-lucide="sun" width="18" height="18"></i>';
+          createIcons({ icons });
+        }
+
+        saveTheme();
+        createIcons({ icons }); // refresh icons
+      }
+
+      let tasks = [];
+      let currentFilter = "active"; // Default to active tasks
+      const BASE_HEIGHT = 150;
+      const TASK_HEIGHT = 53;
+      const EMPTY_STATE_HEIGHT = TASK_HEIGHT * 2;
+      const MIN_HEIGHT = 256;
+      const MAX_HEIGHT = 600;
+
+      loadTasks();
+      loadTheme();
+      autoDeleteCompletedTasks();
+
+      ipcRenderer.on("focus-input", () => {
+        switchTab("active");
+        document.getElementById("taskInput").focus();
+      });
+
+      ipcRenderer.on("show-settings", () => {
+        toggleTheme();
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          hideWindow();
+        }
+      });
+
+      function hideWindow() {
+        ipcRenderer.send("hide-window");
+      }
+
+      function handleKeyPress(event) {
+        if (event.key === "Enter") {
+          addTask();
+        }
+      }
+
+      function addTask() {
+        const input = document.getElementById("taskInput");
+        const text = input.value.trim();
+
+        if (!text) return;
+
+        const task = {
+          id: Date.now(),
+          text: text,
+          completed: false,
+          createdAt: new Date().toLocaleString(),
+          createdAt: Date.now(),
+        };
+
+        tasks.unshift(task);
+        input.value = "";
+
+        switchTab("active");
+        saveTasks();
+        renderTasks();
+        updateStats();
+        updateWindowHeight();
+      }
+
+      function toggleTask(id) {
+        const task = tasks.find((t) => t.id === id);
+        if (task) {
+          task.completed = !task.completed;
+          if (task.completed) {
+            task.completedAt = new Date().toLocaleString();
+            switchTab("completed");
+          } else {
+            delete task.completedAt;
+            switchTab("active");
+          }
+          saveTasks();
+          renderTasks();
+          updateStats();
+          updateWindowHeight();
+        }
+      }
+
+      function deleteTask(id) {
+        if (confirm("Delete this task?")) {
+          tasks = tasks.filter((t) => t.id !== id);
+          saveTasks();
+          renderTasks();
+          updateStats();
+          updateWindowHeight();
+        }
+      }
+
+      function cleanupOldCompletedTasks() {
+        const currentTime = new Date().getTime();
+        const sixHoursInMs = 6 * 60 * 60 * 1000;
+
+        tasks = tasks.filter((task) => {
+          if (task.completed && task.completedAt) {
+            const completedTime = task.completedAt;
+            const timeDifference = currentTime - completedTime;
+            return timeDifference < sixHoursInMs;
+          }
+          return true;
+        });
+
+        saveTasks();
+        renderTasks();
+        updateStats();
+        updateWindowHeight();
+      }
+
+      function autoDeleteCompletedTasks() {
+        cleanupOldCompletedTasks();
+        setInterval(cleanupOldCompletedTasks, 30 * 60 * 1000);
+      }
+
+      function switchTab(tab) {
+        currentFilter = tab;
+        document.getElementById("activeTab").classList.remove("active");
+        document.getElementById("completedTab").classList.remove("active");
+
+        if (tab === "active") {
+          document.getElementById("activeTab").classList.add("active");
+        } else {
+          document.getElementById("completedTab").classList.add("active");
+        }
+
+        renderTasks();
+        updateWindowHeight();
+      }
+
+      function getFilteredTasks() {
+        switch (currentFilter) {
+          case "active":
+            return tasks.filter((t) => !t.completed);
+          case "completed":
+            return tasks.filter((t) => t.completed);
+          default:
+            return tasks.filter((t) => !t.completed);
+        }
+      }
+
+      function renderTasks() {
+        const taskList = document.getElementById("taskList");
+        const filteredTasks = getFilteredTasks();
+
+        if (filteredTasks.length === 0) {
+          const emptyMessage =
+            currentFilter === "active"
+              ? "No active tasks"
+              : "No completed tasks";
+          taskList.innerHTML = `<div class="empty-state">${emptyMessage}</div>`;
+          return;
+        }
+
+        taskList.innerHTML = filteredTasks
+          .map(
+            (task) => `
+              <div class="task-item">
+                <input 
+                  type="checkbox" 
+                  class="task-checkbox" 
+                  ${task.completed ? "checked" : ""}
+                  onchange="toggleTask(${task.id})"
+                >
+                <div class="task-text ${task.completed ? "completed" : ""}">${
+              task.text
+            }</div>
+                <div class="task-date">${formatDateTime(
+                  task.completed ? task.completedAt : task.createdAt
+                )}</div>
+
+               <button class="delete-btn" onclick="deleteTask(${task.id})">
+  <i data-lucide="trash-2" width="16" height="16"></i>
+</button>
+
+              </div>
+            `
+          )
+          .join("");
+      }
+
+      function updateStats() {
+        const total = tasks.length;
+        const completed = tasks.filter((t) => t.completed).length;
+        const active = total - completed;
+
+        document.getElementById("activeTab").innerHTML = `Active (${active})`;
+        document.getElementById(
+          "completedTab"
+        ).innerHTML = `Completed (${completed})`;
+
+        ipcRenderer.send("update-tray-tooltip", { active, completed, total });
+      }
+
+      function updateWindowHeight() {
+        const filteredTasks = getFilteredTasks();
+        let newHeight;
+
+        if (filteredTasks.length === 0) {
+          newHeight = BASE_HEIGHT + EMPTY_STATE_HEIGHT;
+        } else {
+          newHeight = BASE_HEIGHT + filteredTasks.length * TASK_HEIGHT;
+        }
+
+        newHeight = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, newHeight));
+
+        setTimeout(() => {
+          ipcRenderer.send("update-window-height", newHeight);
+        }, 50);
+      }
+
+      function loadTasks() {
+        const saved = localStorage.getItem("todoTasks");
+        if (saved) {
+          tasks = JSON.parse(saved);
+        }
+        cleanupOldCompletedTasks();
+        renderTasks();
+        updateStats();
+        updateWindowHeight();
+      }
+
+      function saveTasks() {
+        localStorage.setItem("todoTasks", JSON.stringify(tasks));
+      }
+
+      function saveTheme() {
+        const theme = document.body.getAttribute("data-theme");
+        localStorage.setItem("todoTheme", theme);
+      }
+
+      function loadTheme() {
+        const savedTheme = localStorage.getItem("todoTheme") || "dark";
+        document.body.setAttribute("data-theme", savedTheme);
+
+        const icon =
+          savedTheme === "dark"
+            ? '<i data-lucide="sun" width="18" height="18"></i>'
+            : '<i data-lucide="moon" width="18" height="18"></i>';
+
+        document.getElementById("themeToggle").innerHTML = icon;
+        createIcons({ icons });
+      }
+
+      renderTasks();
+      updateStats();
+      updateWindowHeight();
+    </script>
+  </body>
+</html>
