@@ -1,20 +1,46 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, globalShortcut } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
+const fs = require('fs').promises;
 
 let tray = null;
 let window = null;
 let isQuitting = false;
 
+// Path to tasks.json file (stored in AppData)
+const TASKS_FILE = path.join(app.getPath('userData'), 'tasks.json');
 
-// Create the main window
+// --- File operations ---
+async function loadTasksFromFile() {
+  try {
+    const data = await fs.readFile(TASKS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch {
+    console.log('No tasks file found or error reading, creating new one');
+    return [];
+  }
+}
+
+async function saveTasksToFile(tasks) {
+  try {
+    await fs.writeFile(TASKS_FILE, JSON.stringify(tasks, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Error saving tasks:', error);
+    return false;
+  }
+}
+
+// --- Create the main window ---
 function createWindow() {
+  if (window) return; // avoid duplicates
+
   window = new BrowserWindow({
     width: 350,
-    height: 250, // Start with minimum height
+    height: 250,
     show: false,
     frame: false,
     alwaysOnTop: true,
-    resizable: false, // Keep this false since we're controlling height programmatically
+    resizable: false,
     skipTaskbar: false,
     minHeight: 250,
     maxHeight: 600,
@@ -42,43 +68,32 @@ function createWindow() {
   });
 }
 
-// Create system tray
+// --- Create system tray ---
 function createTray() {
-  // Create tray icon
   tray = new Tray(path.join(__dirname, 'assets', 'icon.png'));
+  tray.setToolTip('Todo App - Loading...');
 
-  // Tray tooltip
-  tray.setToolTip('Todo App - Click to open');
-
-  // Context menu for right-click
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Show Task',
-      click: () => {
-        showWindow();
-      }
+      label: 'Show Tasks',
+      click: () => showWindow()
     },
     {
       label: '➕ Quick Add Task',
       click: () => {
         showWindow();
-        // Focus on input field
-        window.webContents.send('focus-input');
+        if (window) window.webContents.send('focus-input');
       }
     },
-    {
-      type: 'separator'
-    },
+    { type: 'separator' },
     {
       label: '🌓 Toggle Theme',
       click: () => {
         showWindow();
-        window.webContents.executeJavaScript('toggleTheme()');
+        if (window) window.webContents.executeJavaScript('toggleTheme()');
       }
     },
-    {
-      type: 'separator'
-    },
+    { type: 'separator' },
     {
       label: '❌ Quit',
       click: () => {
@@ -90,28 +105,20 @@ function createTray() {
 
   tray.setContextMenu(contextMenu);
 
-  // Single click to toggle window
-  tray.on('click', () => {
-    toggleWindow();
-  });
+  // Single click toggles window
+  tray.on('click', toggleWindow);
 
-  // Double click to show window
-  tray.on('double-click', () => {
-    showWindow();
-  });
+  // Double click shows window
+  tray.on('double-click', showWindow);
 }
 
-// Show window near system tray
+// --- Show window near system tray ---
 function showWindow() {
-  if (!window) {
-    createWindow();
-  }
+  if (!window) createWindow();
 
-  // Position window near system tray
   const trayBounds = tray.getBounds();
   const windowBounds = window.getBounds();
 
-  // Calculate position (bottom-right corner)
   const x = Math.round(trayBounds.x + (trayBounds.width / 2) - (windowBounds.width / 2));
   const y = Math.round(trayBounds.y - windowBounds.height - 10);
 
@@ -120,7 +127,7 @@ function showWindow() {
   window.focus();
 }
 
-// Toggle window visibility
+// --- Toggle window ---
 function toggleWindow() {
   if (window && window.isVisible()) {
     window.hide();
@@ -129,64 +136,54 @@ function toggleWindow() {
   }
 }
 
-// App ready
-app.whenReady().then(() => {
-  createTray();
-  createWindow();
+// --- Prevent multiple instances ---
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (window) {
+      if (window.isMinimized()) window.restore();
+      window.focus();
+    }
+  });
+}
 
-  // Register global shortcut (Ctrl+Shift+T)
-  globalShortcut.register('CommandOrControl+Shift+T', () => {
-    toggleWindow();
+// --- App ready ---
+app.whenReady().then(() => {
+  createTray();  // ✅ tray shows immediately
+  setTimeout(createWindow, 1000); // lazy-load window after 1s
+
+  globalShortcut.register('CommandOrControl+Shift+T', toggleWindow);
+
+  // IPC handlers
+  ipcMain.handle('load-tasks', async () => await loadTasksFromFile());
+  ipcMain.handle('save-tasks', async (event, tasks) => await saveTasksToFile(tasks));
+
+  ipcMain.on('update-window-height', (event, height) => {
+    if (window) {
+      const bounds = window.getBounds();
+      const { width, x, y, height: currentHeight } = bounds;
+      const newY = y + (currentHeight - height);
+      window.setBounds({ x, y: newY, width, height }, true);
+    }
   });
 
-  // Handle window height updates
-ipcMain.on('update-window-height', (event, height) => {
-  if (window) {
-    const bounds = window.getBounds(); // current position & size
-    const { width, x, y, height: currentHeight } = bounds;
+  ipcMain.on('hide-window', () => {
+    if (window) window.hide();
+  });
 
-    // Calculate new Y so the window stays at the bottom
-    const newY = y + (currentHeight - height);
- 
-    window.setBounds(
-      { x, y: newY, width, height },
-      true // animate
-    );
-  }
-});
-    ipcMain.on('hide-window', () => {
-  if (window) {
-    window.hide();
-  }
-});
-
-
-
-  // Update tray tooltip with task count
   ipcMain.on('update-tray-tooltip', (event, taskCount) => {
-    const tooltip = taskCount.total === 0 
-      ? 'Todo App - No tasks'
-      : `Todo App - ${taskCount.active} active, ${taskCount.completed} completed`;
+    const tooltip =
+      taskCount.total === 0
+        ? 'Todo App - No tasks'
+        : `Todo App - ${taskCount.active} active, ${taskCount.completed} completed`;
     tray.setToolTip(tooltip);
   });
 });
 
-// Quit when all windows are closed (except on macOS)
-app.on('window-all-closed', () => {
-  // Keep app running in tray
-});
-
-// Activate app (macOS)
-app.on('activate', () => {
-  showWindow();
-});
-
-// Before quit
-app.on('before-quit', () => {
-  isQuitting = true;
-});
-
-// Cleanup
-app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
-});
+// --- Quit rules ---
+app.on('window-all-closed', () => {});
+app.on('activate', () => showWindow());
+app.on('before-quit', () => (isQuitting = true));
+app.on('will-quit', () => globalShortcut.unregisterAll());
